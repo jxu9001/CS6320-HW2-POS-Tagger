@@ -4,7 +4,7 @@
 
 from HMMTagger import HMMTagger
 
-sentence1 = 'the planet jupiter and its moons are in effect a mini solar system .'
+sentence1 = 'the planet jupiter and its moons are in effect a solar system .'
 sentence2 = 'computers process programs accurately .'
 
 def main():
@@ -14,10 +14,14 @@ def main():
     # load the corpus into the tagger
     tagger.load_corpus('./modified_brown')
 
-    for sentence in tagger.sentences:
-        print(sentence)
-    print(len(tagger.sentences))
+    # initialize the initial tag probabilities, transition probabilities, and emission probabilities
+    tagger.initialize_probabilities(tagger.sentences)
 
+    # use the Viterbi algorithm to tag the two given sentences
+    tag_seq1 = tagger.viterbi_decode(sentence1)
+    tag_seq2 = tagger.viterbi_decode(sentence2)
+    print('The most likely tag sequence for the sentence \"{}\" is {}'.format(sentence1, tag_seq1))
+    print('The most likely tag sequence for the sentence \"{}\" is {}'.format(sentence2, tag_seq2))
 
 if __name__ == '__main__':
     main()
