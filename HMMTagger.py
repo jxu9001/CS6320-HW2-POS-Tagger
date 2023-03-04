@@ -80,7 +80,7 @@ class HMMTagger:
         back_pointers = collections.defaultdict(int)
         best_path = []
 
-        for s in self.state_space.values():
+        for s in states:
             trellis[s, 0] = self.pi[s] + self.em[s, ob_seq[0]]
             back_pointers[s, 0] = 0
 
@@ -90,7 +90,7 @@ class HMMTagger:
                 trellis[s, o] = trellis[k, o - 1] + self.tr[k, s] + self.em[s, ob_seq[o]]
                 back_pointers[s, o] = k
 
-        k = np.argmax([trellis[final_state, len(ob_seq) - 1] for final_state in states])
+        k = np.argmax([trellis[k, len(ob_seq) - 1] for k in states])
         for o in range(len(ob_seq) - 1, -1, -1):
             best_path.insert(0, self.idx_to_tag[k])
             k = back_pointers[k, o]
