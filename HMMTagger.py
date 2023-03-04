@@ -3,15 +3,16 @@ import collections
 import numpy as np
 from sklearn.preprocessing import normalize
 
+
 class HMMTagger:
     def __init__(self):
         self.sentences = []
         self.state_space = None  # k: POS tags, v: array index
         self.observation_space = None  # k: words in the corpus, v: array index
-        self.state_to_tag = None # k: array index, v: POS tags
-        self.pi = None # starting probabilities, expressed as log probs
-        self.tr = None # transition probabilities, expressed as log probs
-        self.em = None # emission probabilities, expressed as log probs
+        self.idx_to_tag = None  # k: array index, v: POS tags
+        self.pi = None  # starting probabilities, expressed as log probs
+        self.tr = None  # transition probabilities, expressed as log probs
+        self.em = None  # emission probabilities, expressed as log probs
 
     def load_corpus(self, path):
         """
@@ -20,10 +21,13 @@ class HMMTagger:
         """
         for file_name in os.listdir(path):
             with open(os.path.join(path, file_name), 'r') as f:
-                for l in f:
-                    if l.strip():
-                        # incomprehensible list comprehensions ftw
-                        sentence = [tuple(map(str.lower, word_tag.split('/'))) for word_tag in l.split() if l.strip()]
+                for line in f:
+                    if line.strip():
+                        sentence = []
+                        for word_tag in line.split():
+                            word = word_tag.split('/')[0].lower()
+                            tag = word_tag.split('/')[1]
+                            sentence.append((word, tag))
                         self.sentences.append(sentence)
 
     def initialize_probabilities(self, sentences):
@@ -32,17 +36,11 @@ class HMMTagger:
         probabilities, and the emission probabilities.
         """
         # initialize the state space and observation space
-        ss= {'eos'}
-        os = set()
-        for sentence in sentences:
-            for (word, tag) in sentence:
-                ss.add(tag)
-                os.add(word)
-        ss = sorted(ss)
-        os = sorted(os)
-        self.state_space = {tag: i for i, tag in enumerate(ss)}
-        self.observation_space = {word: i for i, word in enumerate(os)}
-        self.state_to_tag = {i: tag for i, tag in enumerate(ss)}
+        self.state_space = sorted({wt[1] for sentence in sentences for wt in sentence})
+        self.observation_space = sorted({wt[0] for sentence in sentences for wt in sentence})
+        self.state_space = {tag: i for i, tag in enumerate(self.state_space)}
+        self.observation_space = {word: i for i, word in enumerate(self.observation_space)}
+        self.idx_to_tag = {i: tag for i, tag in enumerate(self.state_space)}
 
         # initialize the initial tag probabilities
         initial_tag_counts = collections.Counter(sentence[0][1] for sentence in sentences)
@@ -56,7 +54,7 @@ class HMMTagger:
         for sentence in sentences:
             for i in range(len(sentence) - 1):
                 curr_tag = self.state_space[sentence[i][1]]
-                next_tag = self.state_space[sentence[i + 1][1]] if i != len(sentence) - 1 else self.state_space['eos']
+                next_tag = self.state_space[sentence[i + 1][1]]
                 self.tr[curr_tag, next_tag] += 1
         self.tr = normalize(self.tr, axis=1, norm='l1')
         self.tr = np.log(self.tr + 1e-16)
@@ -71,31 +69,30 @@ class HMMTagger:
         self.em = normalize(self.em, axis=1, norm='l1')
         self.em = np.log(self.em + 1e-16)
 
-
-
-
     def viterbi_decode(self, sentence):
         """
         Returns the most likely tag sequence for a given sentence using the Viterbi algorithm.
         Given the sentence 'People race tomorrow .', this method may return [‘NOUN’, ‘VERB’, ‘NOUN’, ‘PUNCTUATION’]
         """
         ob_seq = [self.observation_space[word] for word in sentence.split()]
+        states = self.state_space.values()
         trellis = collections.defaultdict(float)
-        backpointers = collections.defaultdict(int)
+        back_pointers = collections.defaultdict(int)
         best_path = []
-        for i in self.state_space.values():
-            trellis[i, 0] = self.pi[i] + self.em[i, ob_seq[0]]
-            backpointers[i, 0] = 0
-        for j in range(1, len(ob_seq)):
-            for i in self.state_space.values():
-                k = np.argmax([trellis[prev_state, j - 1] + self.tr[prev_state, i] + self.em[i, ob_seq[j]] for prev_state in self.state_space.values()])
-                trellis[i, j] = trellis[k, j - 1] + self.tr[k, i] + self.em[i, ob_seq[j]]
-                backpointers[i, j] = k
 
-        k = np.argmax([trellis[final_state, len(ob_seq) - 1] for final_state in self.state_space.values()])
-        for j in range(len(ob_seq) - 1, -1, -1):
-            best_path.insert(0, k)
-            k = backpointers[k, j]
+        for s in self.state_space.values():
+            trellis[s, 0] = self.pi[s] + self.em[s, ob_seq[0]]
+            back_pointers[s, 0] = 0
 
-        return [self.state_to_tag[state] for state in best_path]
+        for o in range(1, len(ob_seq)):
+            for s in states:
+                k = np.argmax([trellis[k, o - 1] + self.tr[k, s] + self.em[s, ob_seq[o]] for k in states])
+                trellis[s, o] = trellis[k, o - 1] + self.tr[k, s] + self.em[s, ob_seq[o]]
+                back_pointers[s, o] = k
 
+        k = np.argmax([trellis[final_state, len(ob_seq) - 1] for final_state in states])
+        for o in range(len(ob_seq) - 1, -1, -1):
+            best_path.insert(0, self.idx_to_tag[k])
+            k = back_pointers[k, o]
+
+        return best_path

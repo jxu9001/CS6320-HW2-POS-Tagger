@@ -4,8 +4,8 @@
 
 from HMMTagger import HMMTagger
 
-sentence1 = 'the planet jupiter and its moons are in effect a solar system .'
-sentence2 = 'computers process programs accurately .'
+s1 = 'the planet jupiter and its moons are in effect a miniature solar system .'
+s2 = 'computers process programs accurately .'
 
 def main():
     # initialize the tagger
@@ -18,10 +18,8 @@ def main():
     tagger.initialize_probabilities(tagger.sentences)
 
     # use the Viterbi algorithm to tag the two given sentences
-    tag_seq1 = tagger.viterbi_decode(sentence1)
-    tag_seq2 = tagger.viterbi_decode(sentence2)
-    print('The most likely tag sequence for the sentence \"{}\" is {}'.format(sentence1, tag_seq1))
-    print('The most likely tag sequence for the sentence \"{}\" is {}'.format(sentence2, tag_seq2))
+    print('The most likely tag sequence for the sentence \"{}\" is:\n {}'.format(s1, tagger.viterbi_decode(s1)))
+    print('The most likely tag sequence for the sentence \"{}\" is:\n {}'.format(s2, tagger.viterbi_decode(s2)))
 
 if __name__ == '__main__':
     main()
