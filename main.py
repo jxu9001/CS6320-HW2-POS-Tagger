@@ -4,8 +4,9 @@
 
 from HMMTagger import HMMTagger
 
-s1 = 'the planet jupiter and its moons are in effect a miniature solar system .'
+s1 = 'the planet jupiter and its moons are in effect a mini solar system .'
 s2 = 'computers process programs accurately .'
+
 
 def main():
     # initialize the tagger

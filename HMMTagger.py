@@ -7,12 +7,12 @@ from sklearn.preprocessing import normalize
 class HMMTagger:
     def __init__(self):
         self.sentences = []
-        self.state_space = None  # k: POS tags, v: array index
+        self.state_space = None        # k: POS tags, v: array index
         self.observation_space = None  # k: words in the corpus, v: array index
-        self.idx_to_tag = None  # k: array index, v: POS tags
-        self.pi = None  # starting probabilities, expressed as log probs
-        self.tr = None  # transition probabilities, expressed as log probs
-        self.em = None  # emission probabilities, expressed as log probs
+        self.idx_to_tag = None         # k: array index, v: POS tags
+        self.pi = None                 # starting probability vector, expressed as log probs
+        self.tr = None                 # transition probability matrix, expressed as log probs
+        self.em = None                 # emission probability matrix, expressed as log probs
 
     def load_corpus(self, path):
         """
@@ -25,9 +25,8 @@ class HMMTagger:
                     if line.strip():
                         sentence = []
                         for word_tag in line.split():
-                            word = word_tag.split('/')[0].lower()
-                            tag = word_tag.split('/')[1]
-                            sentence.append((word, tag))
+                            word, tag = word_tag.split('/')
+                            sentence.append((word.lower(), tag))
                         self.sentences.append(sentence)
 
     def initialize_probabilities(self, sentences):
@@ -36,11 +35,12 @@ class HMMTagger:
         probabilities, and the emission probabilities.
         """
         # initialize the state space and observation space
-        self.state_space = sorted({wt[1] for sentence in sentences for wt in sentence})
-        self.observation_space = sorted({wt[0] for sentence in sentences for wt in sentence})
-        self.state_space = {tag: i for i, tag in enumerate(self.state_space)}
-        self.observation_space = {word: i for i, word in enumerate(self.observation_space)}
+        self.state_space = {tag: i for i, tag in enumerate(sorted({wt[1] for s in sentences for wt in s}))}
+        self.observation_space = {word: i for i, word in enumerate(sorted({wt[0] for s in sentences for wt in s}))}
         self.idx_to_tag = {i: tag for i, tag in enumerate(self.state_space)}
+
+        # add <UNK> token to the observation space
+        self.observation_space['<UNK>'] = len(self.observation_space)
 
         # initialize the initial tag probabilities
         initial_tag_counts = collections.Counter(sentence[0][1] for sentence in sentences)
@@ -60,21 +60,26 @@ class HMMTagger:
         self.tr = np.log(self.tr + 1e-16)
 
         # initialize the emission probabilities
-        self.em = np.zeros((len(self.state_space), len(self.observation_space)))
+        # add-one smoothing for the emission matrix
+        # p(tag T emits word W) = (count(W) + 1) / (sum(row of self.em corresponding to T) + vocab_size)
+        # if count(W) = 0, then this probability is just 1 / (sum(row of self.em corresponding to T) + vocab_size)
+        # also note that vocab_size = self.em.shape[1]
+        self.em = np.ones((len(self.state_space), len(self.observation_space)))
         for sentence in sentences:
             for (word, tag) in sentence:
                 word = self.observation_space[word]
                 tag = self.state_space[tag]
                 self.em[tag, word] += 1
         self.em = normalize(self.em, axis=1, norm='l1')
-        self.em = np.log(self.em + 1e-16)
+        self.em = np.log(self.em)
 
     def viterbi_decode(self, sentence):
         """
         Returns the most likely tag sequence for a given sentence using the Viterbi algorithm.
         Given the sentence 'People race tomorrow .', this method may return [‘NOUN’, ‘VERB’, ‘NOUN’, ‘PUNCTUATION’]
         """
-        ob_seq = [self.observation_space[word] for word in sentence.split()]
+        # heavily based on the pseudocode @ https://en.wikipedia.org/wiki/Viterbi_algorithm
+        ob_seq = [self.observation_space.get(word, self.observation_space['<UNK>']) for word in sentence.split()]
         states = self.state_space.values()
         trellis = collections.defaultdict(float)
         back_pointers = collections.defaultdict(int)
@@ -82,7 +87,6 @@ class HMMTagger:
 
         for s in states:
             trellis[s, 0] = self.pi[s] + self.em[s, ob_seq[0]]
-            back_pointers[s, 0] = 0
 
         for o in range(1, len(ob_seq)):
             for s in states:
