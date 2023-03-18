@@ -1,0 +1,12 @@
+Results for the sentence ``the planet jupiter and its moons are in effect a mini solar system ."
+The HMM-based tagger incorrectly tagged the word ``moons" as a verb, while the RNN-based tagger incorrectly tagged the word ``effect" as a verb.
+
+Results for the sentence ``computers process programs accurately ."
+Both the HMM-based tagger and the RNN-based tagger incorrectly tagged the word ``process" as a noun.
+Additionally, the HMM-based tagger correctly tagged ``computers" as a noun.
+
+Lessons learned
+This assignment taught me more about implementing neural networks in Keras and how to implement the Viterbi algorithm in python.
+Additionally, I learned the downsides of add-one smoothing, which according to the lecture slides moves too much probability mass to the zeros.
+Here, an event that never occurred (the DET tag emitting the word ``computers") was allowed to artificially occur.
+This artificial occurrence allowed P(start in DET and DET emits ``computers") * P(DET -> NOUN) to dominate P(start in NOUN and NOUN emits ``computers") * P(NOUN -> NOUN).

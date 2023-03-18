@@ -36,18 +36,18 @@ class HMMTagger:
         """
         # initialize the state space and observation space
         self.state_space = {tag: i for i, tag in enumerate(sorted({wt[1] for s in sentences for wt in s}))}
-        self.observation_space = {word: i for i, word in enumerate(sorted({wt[0] for s in sentences for wt in s}))}
+        self.observation_space = {word: i for i, word in enumerate(sorted({wt[0] for s in sentences for wt in s}), 1)}
         self.idx_to_tag = {i: tag for i, tag in enumerate(self.state_space)}
 
-        # add <UNK> token to the observation space
-        self.observation_space['<UNK>'] = len(self.observation_space)
+        # add the <UNK> token to the observation space
+        self.observation_space['<UNK>'] = 0
 
         # initialize the initial tag probabilities
         initial_tag_counts = collections.Counter(sentence[0][1] for sentence in sentences)
         self.pi = np.zeros(len(self.state_space))
         for tag, count in initial_tag_counts.items():
             self.pi[self.state_space[tag]] = count / len(sentences)
-        self.pi = np.log(self.pi + 1e-16)
+        self.pi = np.log(self.pi)
 
         # initialize the transition probabilities
         self.tr = np.zeros((len(self.state_space), len(self.state_space)))
@@ -57,12 +57,13 @@ class HMMTagger:
                 next_tag = self.state_space[sentence[i + 1][1]]
                 self.tr[curr_tag, next_tag] += 1
         self.tr = normalize(self.tr, axis=1, norm='l1')
+        # add 1e-16 to avoid taking the log of 0
         self.tr = np.log(self.tr + 1e-16)
 
         # initialize the emission probabilities
         # add-one smoothing for the emission matrix
-        # p(tag T emits word W) = (count(W) + 1) / (sum(row of self.em corresponding to T) + vocab_size)
-        # if count(W) = 0, then this probability is just 1 / (sum(row of self.em corresponding to T) + vocab_size)
+        # p(tag T emits word W) = (count(T emits W) + 1) / (times T emitted any word + vocab_size)
+        # if count(T emits W) = 0, then this probability is just 1 / (times T emitted any word + vocab_size)
         # also note that vocab_size = self.em.shape[1]
         self.em = np.ones((len(self.state_space), len(self.observation_space)))
         for sentence in sentences:
