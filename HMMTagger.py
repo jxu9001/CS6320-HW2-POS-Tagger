@@ -50,21 +50,20 @@ class HMMTagger:
         self.pi = np.log(self.pi)
 
         # initialize the transition probabilities
-        self.tr = np.zeros((len(self.state_space), len(self.state_space)))
+        # add-one smoothing for the transition matrix
+        # p(T1 -> T2) = count(T1 -> T2) / (count(T1) + 11)
+        self.tr = np.ones((len(self.state_space), len(self.state_space)))
         for sentence in sentences:
             for i in range(len(sentence) - 1):
                 curr_tag = self.state_space[sentence[i][1]]
                 next_tag = self.state_space[sentence[i + 1][1]]
                 self.tr[curr_tag, next_tag] += 1
         self.tr = normalize(self.tr, axis=1, norm='l1')
-        # add 1e-16 to avoid taking the log of 0
-        self.tr = np.log(self.tr + 1e-16)
+        self.tr = np.log(self.tr)
 
         # initialize the emission probabilities
         # add-one smoothing for the emission matrix
         # p(tag T emits word W) = (count(T emits W) + 1) / (times T emitted any word + vocab_size)
-        # if count(T emits W) = 0, then this probability is just 1 / (times T emitted any word + vocab_size)
-        # also note that vocab_size = self.em.shape[1]
         self.em = np.ones((len(self.state_space), len(self.observation_space)))
         for sentence in sentences:
             for (word, tag) in sentence:
